@@ -1,0 +1,93 @@
+name: Build BPi-R4 ImmortalWrt Firmware
+
+on:
+  workflow_dispatch: # 允许网页端手动一键触发
+  push:
+    paths:
+      - 'bpir4.config'
+      - 'patches/**'
+
+env:
+  REPO_URL: https://github.com/0x5826/immortalwrt-mtk.git
+  REPO_BRANCH: master # 如使用具体分支请自行替换，如 openwrt-24.10 或 mt7988-6.18
+  CONFIG_FILE: bpir4.config
+  DIY_PATCH_DIR: patches
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 检出当前仓库
+        uses: actions/checkout@v4
+
+      - name: 初始化编译环境
+        run: |
+          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
+            git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev \
+            libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz \
+            mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip libpython3-dev qemu-utils \
+            rsync subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev libfuse-dev
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+
+      - name: 克隆源码与拉取 Feeds
+        run: |
+          git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
+          cd openwrt
+          
+          # 禁用会引发循环依赖报错的 video feed
+          sed -i 's/^src-git video/#src-git video/g' feeds.conf.default 2>/dev/null || true
+          
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: 合入自定义配置与内核补丁
+        run: |
+          cd openwrt
+          
+          # 复制精简配置
+          cp ../$CONFIG_FILE .config
+          
+          # 识别并合入 patches 到对应的 6.18 补丁目录
+          PATCH_TARGET_DIR="target/linux/mediatek/patches-6.18"
+          mkdir -p $PATCH_TARGET_DIR
+          if [ -d "../$DIY_PATCH_DIR" ]; then
+            cp -f ../$DIY_PATCH_DIR/*.patch $PATCH_TARGET_DIR/
+          fi
+          
+          # 展开完整依赖树
+          make defconfig
+
+      - name: 预下载依赖包
+        run: |
+          cd openwrt
+          make download -j8
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: 预编译内核并验证补丁
+        run: |
+          cd openwrt
+          make target/linux/prepare V=s
+
+      - name: 启动多线程编译
+        run: |
+          cd openwrt
+          make -j$(nproc) || make -j1 V=s
+
+      - name: 整理打包产物
+        run: |
+          mkdir -p release_firmware
+          # 筛选 BPi-R4 eMMC 镜像及升级包
+          cd openwrt/bin/targets/mediatek/filogic/
+          cp -f *bananapi_bpi-r4* ../../../../release_firmware/ || true
+          cd ../../../../release_firmware
+          ls -lh
+
+      - name: 上传构建产物至 GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: BPi-R4-eMMC-ImmortalWrt-$(date +%Y%m%d)
+          path: release_firmware/*
