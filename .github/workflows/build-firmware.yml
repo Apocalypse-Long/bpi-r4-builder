@@ -1,7 +1,7 @@
 name: Build BPi-R4 ImmortalWrt Firmware
 
 on:
-  workflow_dispatch: # 允许网页端手动一键触发
+  workflow_dispatch:
   push:
     paths:
       - 'bpir4.config'
@@ -9,7 +9,7 @@ on:
 
 env:
   REPO_URL: https://github.com/0x5826/immortalwrt-mtk.git
-  REPO_BRANCH: master # 如使用具体分支请自行替换，如 openwrt-24.10 或 mt7988-6.18
+  REPO_BRANCH: master
   CONFIG_FILE: bpir4.config
   DIY_PATCH_DIR: patches
 
@@ -33,7 +33,7 @@ jobs:
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
 
-      - name: 克隆源码与拉取 Feeds
+      - name: 克隆源码与处理 Feeds
         run: |
           git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
           cd openwrt
@@ -42,23 +42,26 @@ jobs:
           sed -i 's/^src-git video/#src-git video/g' feeds.conf.default 2>/dev/null || true
           
           ./scripts/feeds update -a
+          
+          # 清除导致递归依赖的未用音频包
+          rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
+          
           ./scripts/feeds install -a
 
       - name: 合入自定义配置与内核补丁
         run: |
           cd openwrt
           
-          # 复制精简配置
+          # 载入配置
           cp ../$CONFIG_FILE .config
           
-          # 识别并合入 patches 到对应的 6.18 补丁目录
+          # 合入补丁至 6.18 补丁目录
           PATCH_TARGET_DIR="target/linux/mediatek/patches-6.18"
           mkdir -p $PATCH_TARGET_DIR
           if [ -d "../$DIY_PATCH_DIR" ]; then
             cp -f ../$DIY_PATCH_DIR/*.patch $PATCH_TARGET_DIR/
           fi
           
-          # 展开完整依赖树
           make defconfig
 
       - name: 预下载依赖包
@@ -77,10 +80,9 @@ jobs:
           cd openwrt
           make -j$(nproc) || make -j1 V=s
 
-      - name: 整理打包产物
+      - name: 整理 SD 与 eMMC 镜像产物
         run: |
           mkdir -p release_firmware
-          # 筛选 BPi-R4 eMMC 镜像及升级包
           cd openwrt/bin/targets/mediatek/filogic/
           cp -f *bananapi_bpi-r4* ../../../../release_firmware/ || true
           cd ../../../../release_firmware
@@ -89,5 +91,5 @@ jobs:
       - name: 上传构建产物至 GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: BPi-R4-eMMC-ImmortalWrt-$(date +%Y%m%d)
+          name: BPi-R4-DualBoot-ImmortalWrt-$(date +%Y%m%d)
           path: release_firmware/*
