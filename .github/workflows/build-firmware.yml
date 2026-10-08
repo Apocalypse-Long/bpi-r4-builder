@@ -53,8 +53,11 @@ jobs:
         run: |
           cd openwrt
           
-          # 载入配置
+          # 复制配置
           cp ../$CONFIG_FILE .config
+          
+          # 修复 px5g-openssl 缺失问题：替换 luci-ssl-openssl 为 luci-ssl
+          sed -i 's/CONFIG_PACKAGE_luci-ssl-openssl=y/CONFIG_PACKAGE_luci-ssl=y\nCONFIG_PACKAGE_libustream-openssl=y/g' .config
           
           # 合入补丁至 6.18 补丁目录
           PATCH_TARGET_DIR="target/linux/mediatek/patches-6.18"
@@ -64,6 +67,7 @@ jobs:
           fi
           
           make defconfig
+
 
       - name: 预下载依赖包
         run: |
@@ -97,3 +101,4 @@ jobs:
         with:
           name: BPi-R4-DualBoot-ImmortalWrt-$(date +%Y%m%d)
           path: release_firmware/*
+
