@@ -16,6 +16,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 360 # 显式设置最大超时时间为 6 小时
     steps:
       - name: 检出当前仓库
         uses: actions/checkout@v4
@@ -78,9 +79,11 @@ jobs:
       - name: 启动多线程编译
         run: |
           cd openwrt
-          make -j$(nproc) || make -j1 V=s
+          # 直接使用全核编译，若报错直接失败，便于在日志末尾查看具体错误点
+          make -j$(nproc) V=w
 
       - name: 整理 SD 与 eMMC 镜像产物
+        if: success()
         run: |
           mkdir -p release_firmware
           cd openwrt/bin/targets/mediatek/filogic/
@@ -89,6 +92,7 @@ jobs:
           ls -lh
 
       - name: 上传构建产物至 GitHub Actions
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: BPi-R4-DualBoot-ImmortalWrt-$(date +%Y%m%d)
