@@ -56,17 +56,34 @@ jobs:
           # 复制配置
           cp ../$CONFIG_FILE .config
           
-          # 修复 px5g-openssl 缺失问题：替换 luci-ssl-openssl 为 luci-ssl
-          sed -i 's/CONFIG_PACKAGE_luci-ssl-openssl=y/CONFIG_PACKAGE_luci-ssl=y\nCONFIG_PACKAGE_libustream-openssl=y/g' .config
+          # 1. 彻底禁用并剔除 luci-ssl-openssl，防止其在 defconfig 展开时被作为默认依赖补回
+          sed -i '/CONFIG_PACKAGE_luci-ssl-openssl/d' .config
+          echo "# CONFIG_PACKAGE_luci-ssl-openssl is not set" >> .config
           
-          # 合入补丁至 6.18 补丁目录
+          # 2. 确保基础 Web 管理界面启用
+          sed -i '/CONFIG_PACKAGE_luci=/d' .config
+          echo "CONFIG_PACKAGE_luci=y" >> .config
+          
+          # 3. 锁定 SquashFS 并设置根分区大小为 2048MB（防止 EXT4 镜像空间溢出）
+          sed -i 's/CONFIG_TARGET_ROOTFS_EXT4FS=y/# CONFIG_TARGET_ROOTFS_EXT4FS is not set/g' .config
+          sed -i '/CONFIG_TARGET_ROOTFS_SQUASHFS/d' .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          sed -i '/CONFIG_TARGET_ROOTFS_PARTSIZE/d' .config
+          echo "CONFIG_TARGET_ROOTFS_PARTSIZE=2048" >> .config
+          
+          # 4. 合入内核补丁至 6.18 补丁目录
           PATCH_TARGET_DIR="target/linux/mediatek/patches-6.18"
           mkdir -p $PATCH_TARGET_DIR
           if [ -d "../$DIY_PATCH_DIR" ]; then
             cp -f ../$DIY_PATCH_DIR/*.patch $PATCH_TARGET_DIR/
           fi
           
+          # 展开并补齐依赖树
           make defconfig
+          
+          # 5. defconfig 展开后执行最终检查与强行压制
+          sed -i 's/CONFIG_PACKAGE_luci-ssl-openssl=y/# CONFIG_PACKAGE_luci-ssl-openssl is not set/g' .config
+
 
 
       - name: 预下载依赖包
