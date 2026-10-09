@@ -35,7 +35,7 @@ jobs:
           sudo mkdir -p /workdir
           sudo chown $USER:$GROUPS /workdir
 
-      - name: 克隆 0x5826 专属源码与集成外部组件
+      - name: 克隆 0x5826 专属源码与集成外部插件
         working-directory: /workdir
         env:
           GIT_TERMINAL_PROMPT: 0
@@ -46,26 +46,49 @@ jobs:
           # 禁用有依赖冲突隐患的 video feed
           sed -i 's/^src-git video/#src-git video/g' feeds.conf.default 2>/dev/null || true
 
-          # 1. Lucky 官方源码
+          # 1. 集成 Lucky 官方源码
           git clone --depth 1 https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-          # 2. 0x676e67 官方 Design 主题 (main 分支即为 Lua 版本) 与配套配置面板
-          git clone --depth 1 https://github.com/0x676e67/luci-theme-design.git package/luci-theme-design
-          git clone --depth 1 https://github.com/kenzok8/luci-app-design-config.git package/luci-app-design-config
-
-          # 3. MosDNS v5 全中文汉化套件
+          # 2. 集成 MosDNS v5 全中文汉化套件
           git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
 
-          # 4. EasyTier 组网套件
+          # 3. 集成 EasyTier 去中心化 Mesh 组网套件
           git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier
 
-          # 5. FileTransfer 网页传输助手
+          # 4. 集成 FileTransfer 网页传输助手
           git clone --depth 1 https://github.com/f8q8/luci-app-filetransfer.git package/luci-app-filetransfer
 
           # 更新并安装 Feeds
           ./scripts/feeds update -a
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           ./scripts/feeds install -a
+
+      - name: 注入 0x676e67 主分支 Design Lua 主题与配套组件 (Release v5.8.0-20240106)
+        working-directory: /workdir/openwrt
+        run: |
+          mkdir -p files /tmp/design_pkgs
+          cd /tmp/design_pkgs
+
+          TAG_URL="https://github.com/0x676e67/luci-theme-design/releases/download/v5.8.0-20240106"
+
+          echo "==> 正在下载 0x676e67 main 分支对应的 4 个官方 Release IPK..."
+          wget -q -c "${TAG_URL}/luci-theme-design_5.8.0-20240106-1_all.ipk"
+          wget -q -c "${TAG_URL}/luci-app-design-config_1.3-20230306_all.ipk"
+          wget -q -c "${TAG_URL}/luci-i18n-design-config-zh-cn_1.3-20230306_all.ipk"
+          wget -q -c "${TAG_URL}/luci-i18n-design-config-zh_Hans_1.3-20230306_all.ipk"
+
+          # 解包数据至固件 files/ 目录直接合并进 rootfs
+          for pkg in *.ipk; do
+            if [ -f "$pkg" ] && [ -s "$pkg" ]; then
+              echo "正在解包注入: $pkg"
+              tar -xzf "$pkg" ./data.tar.gz 2>/dev/null || ar -x "$pkg" data.tar.gz 2>/dev/null || true
+              if [ -f data.tar.gz ]; then
+                tar -xzf data.tar.gz -C /workdir/openwrt/files/
+                rm -f data.tar.gz
+              fi
+            fi
+          done
+          rm -rf /tmp/design_pkgs
 
       - name: 注入自定义 Patch 补丁
         working-directory: /workdir/openwrt
@@ -88,7 +111,7 @@ jobs:
         working-directory: /workdir/openwrt
         run: |
           [ -e $GITHUB_WORKSPACE/$CONFIG_FILE ] && cp $GITHUB_WORKSPACE/$CONFIG_FILE .config
-          [ -d $GITHUB_WORKSPACE/files ] && cp -rf $GITHUB_WORKSPACE/files files
+          [ -d $GITHUB_WORKSPACE/files ] && cp -rf $GITHUB_WORKSPACE/files/* files/ 2>/dev/null || true
           make defconfig
 
       - name: 下载软件包依赖缓存
