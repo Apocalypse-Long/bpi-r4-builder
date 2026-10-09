@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_URL: https://github.com/0x5826/immortalwrt-mtk.git
   REPO_BRANCH: master
   CONFIG_FILE: bpir4.config
   TZ: Asia/Shanghai
@@ -35,34 +35,55 @@ jobs:
           sudo mkdir -p /workdir
           sudo chown $USER:$GROUPS /workdir
 
-      - name: 克隆源码与拉取外部应用包
+      - name: 克隆 0x5826 专属源码与集成外部组件
         working-directory: /workdir
         run: |
           git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
           cd openwrt
 
-          # 禁用存在潜在循环依赖的 video feed
+          # 禁用有依赖冲突隐患的 video feed
           sed -i 's/^src-git video/#src-git video/g' feeds.conf.default 2>/dev/null || true
 
-          # 1. 拉取 Lucky 官方源码仓库至 package 目录
+          # 1. 集成 Lucky 官方源码
           git clone --depth 1 https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-          # 2. 拉取 Design 主题与配置面板 (Lua 兼容分支)
+          # 2. 集成 Design 主题与配置面板 (Lua 兼容版本)
           git clone --depth 1 -b js https://github.com/gngpp/luci-theme-design.git package/luci-theme-design 2>/dev/null || \
           git clone --depth 1 https://github.com/kenzok8/luci-theme-design.git package/luci-theme-design
           git clone --depth 1 https://github.com/gngpp/luci-app-design-config.git package/luci-app-design-config 2>/dev/null || \
           git clone --depth 1 https://github.com/kenzok8/luci-app-design-config.git package/luci-app-design-config
 
-          # 3. 拉取带完整中文汉化的 MosDNS v5 官方仓库
+          # 3. 集成 MosDNS v5 全中文汉化套件
           git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
+
+          # 4. 集成 EasyTier 组网套件
+          git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier
+
+          # 5. 集成 FileTransfer 网页传输助手
+          git clone --depth 1 https://github.com/0x676e67/luci-app-filetransfer.git package/luci-app-filetransfer 2>/dev/null || \
+          git clone --depth 1 https://github.com/kenzok8/luci-app-filetransfer.git package/luci-app-filetransfer
 
           # 更新并安装 Feeds
           ./scripts/feeds update -a
-          
-          # 清除导致递归依赖的未用音频包
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
-          
           ./scripts/feeds install -a
+
+      - name: 注入自定义 Patch 补丁
+        working-directory: /workdir/openwrt
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/patches" ] && [ -n "$(ls -A $GITHUB_WORKSPACE/patches/*.patch 2>/dev/null)" ]; then
+            echo "==> 检测到自定义补丁，开始依次注入..."
+            for patch_file in $GITHUB_WORKSPACE/patches/*.patch; do
+              echo "正在应用补丁: $(basename "$patch_file")"
+              patch -p1 --no-backup-if-mismatch < "$patch_file" || {
+                echo "!! 补丁 $(basename "$patch_file") 应用失败，尝试 git apply..."
+                git apply --check "$patch_file" && git apply "$patch_file"
+              }
+            done
+            echo "==> 补丁注入完成。"
+          else
+            echo "==> 未发现 patches/*.patch 文件，跳过此步骤。"
+          fi
 
       - name: 加载自定义配置与预设
         working-directory: /workdir/openwrt
@@ -96,5 +117,5 @@ jobs:
       - name: 上传固件至 GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: BPi-R4-ImmortalWrt-${{ env.FILE_DATE }}
+          name: BPi-R4-ImmortalWrt-MTK-${{ env.FILE_DATE }}
           path: ${{ env.ARTIFACT_PATH }}
