@@ -84,8 +84,6 @@ jobs:
           # 5. defconfig 展开后执行最终检查与强行压制
           sed -i 's/CONFIG_PACKAGE_luci-ssl-openssl=y/# CONFIG_PACKAGE_luci-ssl-openssl is not set/g' .config
 
-
-
       - name: 预下载依赖包
         run: |
           cd openwrt
@@ -106,10 +104,10 @@ jobs:
       - name: 整理 SD 与 eMMC 镜像产物
         if: success()
         run: |
-          mkdir -p release_firmware
+          mkdir -p $GITHUB_WORKSPACE/release_firmware
           cd openwrt/bin/targets/mediatek/filogic/
-          cp -f *bananapi_bpi-r4* ../../../../release_firmware/ || true
-          cd ../../../../release_firmware
+          cp -f *bananapi_bpi-r4* $GITHUB_WORKSPACE/release_firmware/ || true
+          cd $GITHUB_WORKSPACE/release_firmware
           ls -lh
 
       - name: 上传构建产物至 GitHub Actions
@@ -118,4 +116,3 @@ jobs:
         with:
           name: BPi-R4-DualBoot-ImmortalWrt-$(date +%Y%m%d)
           path: release_firmware/*
-
