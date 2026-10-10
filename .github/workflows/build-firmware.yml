@@ -49,13 +49,16 @@ jobs:
           # 1. 集成 Lucky 官方源码
           git clone --depth 1 https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-          # 2. 集成 MosDNS v5 全中文汉化套件
+          # 2. 集成适配新版 ucode/JS 架构的 Design 主题 (锁定 js 分支，彻底避免 ucode 崩溃)
+          git clone --depth 1 -b js https://github.com/0x676e67/luci-theme-design.git package/luci-theme-design
+
+          # 3. 集成 MosDNS v5 全中文汉化套件
           git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
 
-          # 3. 集成 EasyTier 去中心化 Mesh 组网套件
+          # 4. 集成 EasyTier 去中心化 Mesh 组网套件
           git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier
 
-          # 4. 集成 FileTransfer 网页传输助手
+          # 5. 集成 FileTransfer 网页传输助手
           git clone --depth 1 https://github.com/f8q8/luci-app-filetransfer.git package/luci-app-filetransfer
 
           # 更新并安装 Feeds
@@ -63,32 +66,27 @@ jobs:
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           ./scripts/feeds install -a
 
-      - name: 注入 0x676e67 主分支 Design Lua 主题与配套组件 (Release v5.8.0-20240106)
+      - name: 注入 Netdata 中文汉化仪表盘资源
         working-directory: /workdir/openwrt
         run: |
-          mkdir -p files /tmp/design_pkgs
-          cd /tmp/design_pkgs
+          mkdir -p files/usr/share/netdata/web /tmp/netdata_cn
+          cd /tmp/netdata_cn
 
-          TAG_URL="https://github.com/0x676e67/luci-theme-design/releases/download/v5.8.0-20240106"
+          echo "==> 正在拉取 Netdata 中文前端资源..."
+          git clone --depth 1 https://github.com/yn-jly/netdata-cn.git repo 2>/dev/null || \
+          git clone --depth 1 https://gitee.com/sirpdboy/netdata-cn.git repo 2>/dev/null || true
 
-          echo "==> 正在下载 0x676e67 main 分支对应的 4 个官方 Release IPK..."
-          wget -q -c "${TAG_URL}/luci-theme-design_5.8.0-20240106-1_all.ipk"
-          wget -q -c "${TAG_URL}/luci-app-design-config_1.3-20230306_all.ipk"
-          wget -q -c "${TAG_URL}/luci-i18n-design-config-zh-cn_1.3-20230306_all.ipk"
-          wget -q -c "${TAG_URL}/luci-i18n-design-config-zh_Hans_1.3-20230306_all.ipk"
-
-          # 解包数据至固件 files/ 目录直接合并进 rootfs
-          for pkg in *.ipk; do
-            if [ -f "$pkg" ] && [ -s "$pkg" ]; then
-              echo "正在解包注入: $pkg"
-              tar -xzf "$pkg" ./data.tar.gz 2>/dev/null || ar -x "$pkg" data.tar.gz 2>/dev/null || true
-              if [ -f data.tar.gz ]; then
-                tar -xzf data.tar.gz -C /workdir/openwrt/files/
-                rm -f data.tar.gz
-              fi
+          if [ -d "repo" ]; then
+            if [ -d "repo/usr/share/netdata/web" ]; then
+              cp -rf repo/usr/share/netdata/web/* /workdir/openwrt/files/usr/share/netdata/web/
+            else
+              cp -rf repo/* /workdir/openwrt/files/usr/share/netdata/web/
             fi
-          done
-          rm -rf /tmp/design_pkgs
+            echo "==> Netdata 中文控制台文件注入成功。"
+          else
+            echo "!! Netdata-CN 仓库拉取跳过，继续后续流程。"
+          fi
+          rm -rf /tmp/netdata_cn
 
       - name: 注入自定义 Patch 补丁
         working-directory: /workdir/openwrt
