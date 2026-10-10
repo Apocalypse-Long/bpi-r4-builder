@@ -49,16 +49,15 @@ jobs:
           # 1. 集成 Lucky 官方源码
           git clone --depth 1 https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-          # 2. 集成适配新版 ucode/JS 架构的 Design 主题 (锁定 js 分支，彻底避免 ucode 崩溃)
-          git clone --depth 1 -b js https://github.com/0x676e67/luci-theme-design.git package/luci-theme-design
+          # (已移除第三方外部 luci-theme-design，Design 与 Argon 主题统一使用 0x5826 仓库原生 Feeds 版本)
 
-          # 3. 集成 MosDNS v5 全中文汉化套件
+          # 2. 集成 MosDNS v5 全中文汉化套件
           git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
 
-          # 4. 集成 EasyTier 去中心化 Mesh 组网套件
+          # 3. 集成 EasyTier 去中心化 Mesh 组网套件
           git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier
 
-          # 5. 集成 FileTransfer 网页传输助手
+          # 4. 集成 FileTransfer 网页传输助手
           git clone --depth 1 https://github.com/f8q8/luci-app-filetransfer.git package/luci-app-filetransfer
 
           # 更新并安装 Feeds
