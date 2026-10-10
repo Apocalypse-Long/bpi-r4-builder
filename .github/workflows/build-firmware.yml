@@ -59,32 +59,13 @@ jobs:
           git clone --depth 1 https://github.com/f8q8/luci-app-filetransfer.git package/luci-app-filetransfer
           find package/luci-app-filetransfer/ -type f -name "*.lua" -exec sed -i 's/luci\.fs/nixio\.fs/g' {} +
 
+          # 5. 集成 NetSpeedTest (iPerf3 测速面板)
+          git clone --depth 1 https://github.com/muink/luci-app-netspeedtest.git package/luci-app-netspeedtest
+
           # 更新并安装 Feeds (主题直接使用 0x5826 仓库原生维护版本)
           ./scripts/feeds update -a
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           ./scripts/feeds install -a
-
-      - name: 注入 Netdata 中文汉化仪表盘资源
-        working-directory: /workdir/openwrt
-        run: |
-          mkdir -p files/usr/share/netdata/web /tmp/netdata_cn
-          cd /tmp/netdata_cn
-
-          echo "==> 正在拉取 Netdata 中文前端资源..."
-          git clone --depth 1 https://github.com/yn-jly/netdata-cn.git repo 2>/dev/null || \
-          git clone --depth 1 https://gitee.com/sirpdboy/netdata-cn.git repo 2>/dev/null || true
-
-          if [ -d "repo" ]; then
-            if [ -d "repo/usr/share/netdata/web" ]; then
-              cp -rf repo/usr/share/netdata/web/* /workdir/openwrt/files/usr/share/netdata/web/
-            else
-              cp -rf repo/* /workdir/openwrt/files/usr/share/netdata/web/
-            fi
-            echo "==> Netdata 中文控制台文件注入成功。"
-          else
-            echo "!! Netdata-CN 仓库拉取跳过，继续后续流程。"
-          fi
-          rm -rf /tmp/netdata_cn
 
       - name: 注入自定义 Patch 补丁
         working-directory: /workdir/openwrt
