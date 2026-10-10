@@ -49,18 +49,17 @@ jobs:
           # 1. 集成 Lucky 官方源码
           git clone --depth 1 https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-          # (已移除第三方外部 luci-theme-design，Design 与 Argon 主题统一使用 0x5826 仓库原生 Feeds 版本)
-
           # 2. 集成 MosDNS v5 全中文汉化套件
           git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
 
           # 3. 集成 EasyTier 去中心化 Mesh 组网套件
           git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier
 
-          # 4. 集成 FileTransfer 网页传输助手
+          # 4. 集成 FileTransfer 网页传输助手并自动修复 nixio.fs 兼容性
           git clone --depth 1 https://github.com/f8q8/luci-app-filetransfer.git package/luci-app-filetransfer
+          find package/luci-app-filetransfer/ -type f -name "*.lua" -exec sed -i 's/luci\.fs/nixio\.fs/g' {} +
 
-          # 更新并安装 Feeds
+          # 更新并安装 Feeds (主题直接使用 0x5826 仓库原生维护版本)
           ./scripts/feeds update -a
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           ./scripts/feeds install -a
