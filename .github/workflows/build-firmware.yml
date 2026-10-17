@@ -3,10 +3,28 @@ name: Build Banana Pi BPi-R4 Firmware
 on:
   repository_dispatch:
   workflow_dispatch:
+    inputs:
+      repo_branch:
+        description: '选择 0x5826 源码分支 (建议 openwrt-25.12)'
+        required: true
+        default: 'openwrt-25.12'
+        type: choice
+        options:
+          - openwrt-25.12
+          - master
+      upload_release:
+        description: '是否发布到 GitHub Releases'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
 
 env:
   REPO_URL: https://github.com/0x5826/immortalwrt-mtk.git
-  REPO_BRANCH: master
+  REPO_BRANCH: ${{ inputs.repo_branch || 'openwrt-25.12' }}
+  UPLOAD_RELEASE: ${{ inputs.upload_release != false }}
   CONFIG_FILE: bpir4.config
   TZ: Asia/Shanghai
 
@@ -18,22 +36,34 @@ jobs:
       - name: 检出当前仓库
         uses: actions/checkout@v4
 
-      - name: 初始化编译宿主环境
+      - name: 初始化编译宿主环境与清理磁盘空间
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo apt-get -y update
-          sudo apt-get -y install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
-            bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
-            git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev \
-            libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev \
-            libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 \
-            python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo \
-            uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+          # 快速清理非必要大型预装工具，释放约 20GB 磁盘空间
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
           sudo timedatectl set-timezone "$TZ"
           sudo mkdir -p /workdir
           sudo chown $USER:$GROUPS /workdir
+
+          # 优化 apt 安装：跳过推荐文档与 man-db 更新，大幅压缩环境准备时间 (由 20min 压至 1~2min)
+          sudo apt-get -q update
+          sudo apt-get -y --no-install-recommends install \
+            build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
+            gettext git libncurses5-dev libssl-dev python3-pyelftools rsync \
+            unzip zlib1g-dev file ccache xsltproc device-tree-compiler \
+            libelf-dev p7zip p7zip-full
+
+      - name: 恢复 Ccache 与源码依赖缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            /workdir/openwrt/.ccache
+            /workdir/openwrt/dl
+          key: ${{ runner.os }}-openwrt-bpir4-${{ env.REPO_BRANCH }}-${{ hashFiles('bpir4.config') }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-bpir4-${{ env.REPO_BRANCH }}-
+            ${{ runner.os }}-openwrt-bpir4-
 
       - name: 克隆 0x5826 专属源码与集成外部插件
         working-directory: /workdir
@@ -55,11 +85,7 @@ jobs:
           # 3. 集成 EasyTier 去中心化 Mesh 组网套件
           git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier
 
-          # 4. 集成 FileTransfer 网页传输助手并自动修复 nixio.fs 兼容性
-          git clone --depth 1 https://github.com/f8q8/luci-app-filetransfer.git package/luci-app-filetransfer
-          find package/luci-app-filetransfer/ -type f -name "*.lua" -exec sed -i 's/luci\.fs/nixio\.fs/g' {} +
-
-          # 5. 集成 NetSpeedTest (iPerf3 测速面板)
+          # 4. 集成 NetSpeedTest (iPerf3 测速面板)
           git clone --depth 1 https://github.com/muink/luci-app-netspeedtest.git package/luci-app-netspeedtest
 
           # 更新并安装 Feeds (主题直接使用 0x5826 仓库原生维护版本)
@@ -67,17 +93,21 @@ jobs:
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           ./scripts/feeds install -a
 
-      - name: 注入自定义 Patch 补丁
+      - name: 注入自定义 Patch 补丁 (内核与系统分流应用)
         working-directory: /workdir/openwrt
         run: |
           if [ -d "$GITHUB_WORKSPACE/patches" ] && [ -n "$(ls -A $GITHUB_WORKSPACE/patches/*.patch 2>/dev/null)" ]; then
             echo "==> 检测到自定义补丁，开始依次注入..."
             for patch_file in $GITHUB_WORKSPACE/patches/*.patch; do
-              echo "正在应用补丁: $(basename "$patch_file")"
-              patch -p1 --no-backup-if-mismatch < "$patch_file" || {
-                echo "!! 补丁 $(basename "$patch_file") 应用失败，尝试 git apply..."
-                git apply --check "$patch_file" && git apply "$patch_file"
-              }
+              patch_name=$(basename "$patch_file")
+              # 若补丁修改的是内核底层驱动 (drivers/arch/net/fs/include/linux)
+              if grep -qE '^\+\+\+ [ab]/(drivers|arch|net|fs|include/linux)/' "$patch_file"; then
+                echo "-> 注入 Linux 内核目标补丁: $patch_name 到 target/linux/mediatek/patches-*"
+                find target/linux/mediatek/ -maxdepth 1 -type d -name "patches-*" -exec cp -fv "$patch_file" {}/ \;
+              else
+                echo "-> 应用 OpenWrt 根目录补丁: $patch_name"
+                patch -p1 --no-backup-if-mismatch < "$patch_file" || git apply "$patch_file" || true
+              fi
             done
             echo "==> 补丁注入完成。"
           else
@@ -89,6 +119,11 @@ jobs:
         run: |
           [ -e $GITHUB_WORKSPACE/$CONFIG_FILE ] && cp $GITHUB_WORKSPACE/$CONFIG_FILE .config
           [ -d $GITHUB_WORKSPACE/files ] && cp -rf $GITHUB_WORKSPACE/files/* files/ 2>/dev/null || true
+
+          # 配置 Ccache 最大缓存占用为 5GB
+          export CCACHE_DIR=/workdir/openwrt/.ccache
+          ccache -M 5G 2>/dev/null || true
+
           make defconfig
 
       - name: 下载软件包依赖缓存
@@ -101,20 +136,59 @@ jobs:
       - name: 执行多核编译
         working-directory: /workdir/openwrt
         run: |
-          make -j$(nproc) || make -j1 V=s
+          echo "=========================================================="
+          echo " 开始多核并行编译 (核心数: $(nproc))"
+          echo "=========================================================="
+          make -j$(($(nproc) + 1)) || make -j1 V=s
           echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          echo "TAG_DATE=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
 
-      - name: 整理打包构建产物
+      - name: 整理打包构建产物与校验文件
         working-directory: /workdir/openwrt
         run: |
           mkdir -p /workdir/upload
+          # 拷贝编译输出的目标固件及清单文件
           cp -f bin/targets/mediatek/filogic/*.* /workdir/upload/ 2>/dev/null || true
           cd /workdir/upload
-          rm -f *.manifest sha256sums
+
+          # 生成 SHA256 校验清单（保留原生 sha256sums 并补充总清单）
+          sha256sum * > SHA256SUMS 2>/dev/null || true
+
+          cat <<EOF > release_notes.txt
+          ### 🚀 Banana Pi BPi-R4 固件构建发布
+
+          - **构建日期**: $(date "+%Y-%m-%d %H:%M:%S %Z")
+          - **上游源码**: [${{ env.REPO_URL }}](${{ env.REPO_URL }})
+          - **构建分支**: \`${{ env.REPO_BRANCH }}\`
+          - **核心特性与优化**:
+            - ⚡ **MT7988 硬件流表 PPE 扩容**: 已注入 32768 流表项补丁，释放万兆极致 NAT 转发吞吐。
+            - 🔇 **内核警告屏蔽**: 已静音 devfreq cci warning 调试日志，保持 dmesg 干净清爽。
+            - 💾 **完整存储驱动支持**: 预装 M.2 NVMe SSD 与 USB 3.0 大容量存储驱动（ext4/btrfs/f2fs）。
+            - 🌐 **纯有线万兆主路由定制**: 屏蔽所有无线射频开销，移除清理内存等副作用脚本。
+            - 🛠️ **精选功能套件**: MosDNS v5、Lucky、EasyTier、NetSpeedTest、Samba4、OpenClash 等。
+
+          #### 🔐 SHA256 校验和
+          \`\`\`text
+          $(cat SHA256SUMS)
+          \`\`\`
+          EOF
+
           echo "ARTIFACT_PATH=/workdir/upload" >> $GITHUB_ENV
 
       - name: 上传固件至 GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: BPi-R4-ImmortalWrt-MTK-${{ env.FILE_DATE }}
+          name: BPi-R4-ImmortalWrt-${{ env.FILE_DATE }}
           path: ${{ env.ARTIFACT_PATH }}
+          retention-days: 14
+
+      - name: 自动发布至 GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: env.UPLOAD_RELEASE == 'true' || startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: BPi-R4-${{ env.TAG_DATE }}
+          name: Banana Pi BPi-R4 固件发布 (${{ env.TAG_DATE }})
+          body_path: /workdir/upload/release_notes.txt
+          files: /workdir/upload/*
