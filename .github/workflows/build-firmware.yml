@@ -88,7 +88,10 @@ jobs:
           # 4. 集成 NetSpeedTest (iPerf3 测速面板)
           git clone --depth 1 https://github.com/muink/luci-app-netspeedtest.git package/luci-app-netspeedtest
 
-          # 更新并安装 Feeds (主题直接使用 0x5826 仓库原生维护版本)
+          # 5. 集成 shadcn/ui 现代侧边栏主题 (luci-theme-shadcn)
+          git clone --depth 1 https://github.com/eamonxg/luci-theme-shadcn.git package/luci-theme-shadcn
+
+          # 更新并安装 Feeds
           ./scripts/feeds update -a
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           ./scripts/feeds install -a
@@ -165,6 +168,7 @@ jobs:
             - 🔇 **内核警告屏蔽**: 已静音 devfreq cci warning 调试日志，保持 dmesg 干净清爽。
             - 💾 **完整存储驱动支持**: 预装 M.2 NVMe SSD 与 USB 3.0 大容量存储驱动（ext4/btrfs/f2fs）。
             - 🌐 **纯有线万兆主路由定制**: 屏蔽所有无线射频开销，移除清理内存等副作用脚本。
+            - 🎨 **现代化 UI 主题**: 预置基于 shadcn/ui 设计语言的侧边栏现代主题 (`luci-theme-shadcn`)。
             - 🛠️ **精选功能套件**: MosDNS v5、Lucky、EasyTier、NetSpeedTest、Samba4、OpenClash 等。
 
           #### 🔐 SHA256 校验和

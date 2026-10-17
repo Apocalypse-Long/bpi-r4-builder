@@ -21,6 +21,7 @@
    - **存储与共享**：Samba4、Diskman 磁盘管理
    - **测速与监控**：NetSpeedTest (iPerf3)、Prometheus Node Exporter
    - **透明代理**：OpenClash
+   - **现代 UI 界面**：集成 [luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn) 现代侧边栏主题
 6. **高效 CI/CD 构建**：
    - 引入 **Ccache** 与 **dl 依赖缓存**，后续构建耗时从 3 小时缩短至 30 分钟以内；
    - 自动生成 SHA256 校验清单，并自动发布固件至 GitHub Releases。
@@ -60,3 +61,4 @@
 - [sbwml/luci-app-mosdns](https://github.com/sbwml/luci-app-mosdns)
 - [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky)
 - [EasyTier](https://github.com/EasyTier/luci-app-easytier)
+- [eamonxg/luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn)
