@@ -1,14 +1,14 @@
 <div align="center">
 
-# 🚀 Banana Pi BPi-R4 专属 ImmortalWrt 纯有线旗舰固件构建
+# 🚀 Banana Pi BPi-R4 ImmortalWrt 纯有线旗舰固件构建
 
 [![Build Firmware](https://github.com/Apocalypse-Long/bpi-r4-builder/actions/workflows/build-firmware.yml/badge.svg)](https://github.com/Apocalypse-Long/bpi-r4-builder/actions/workflows/build-firmware.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/Apocalypse-Long/bpi-r4-builder?color=blue&logo=github)](https://github.com/Apocalypse-Long/bpi-r4-builder/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-25.12%20(Kernel%206.12)-blue.svg?logo=openwrt)](https://github.com/0x5826/immortalwrt-mtk)
 [![License](https://img.shields.io/github/license/Apocalypse-Long/bpi-r4-builder)](LICENSE)
 
-**专为香蕉派 Banana Pi BPi-R4 (MediaTek MT7988A Filogic 880) 定制的万兆纯有线主路由固件**  
-*双万兆 SFP+ | 硬件流表 PPE 32K 扩容 | 开箱即用 M.2 NVMe SSD 支持 | 现代 shadcn/ui 侧边栏主题*
+**为香蕉派 Banana Pi BPi-R4 (MediaTek MT7988A Filogic 880) 定制的万兆纯有线主路由固件**  
+*双万兆 SFP+ | 硬件流表 PPE 扩容 | 开箱即用 M.2 NVMe SSD 支持 | 现代 shadcn/ui 侧边栏主题*
 
 [项目背景](#-项目背景与设计哲学) • [硬件规格](#-硬件规格全景-bpi-r4) • [网络拓扑](#-推荐网络拓扑与架构) • [特性亮点](#-核心特性与深度优化) • [预置套件](#-预置功能与套件清单) • [刷机指引](#-固件产物与刷机指引) • [编译说明](#-手动编译与自定义配置) • [鸣谢](#-鸣谢与开源项目)
 
@@ -35,7 +35,7 @@
 | 核心组件 | 规格与特性 | 固件对应调优支持 |
 | :--- | :--- | :--- |
 | **中央处理器 (SoC)** | 联发科 MT7988A (Filogic 880) 四核 ARM Cortex-A53 @ 1.8GHz | 开启多核并发编译与内核优化，屏蔽 devfreq 噪音 |
-| **硬件转发引擎 (PPE)** | 内置 Dual Packet Processing Engine (双 PPE) 万兆硬件网络加速 | **补丁注入将流表项扩容至 32,768**，线速 10G NAT 0% CPU |
+| **硬件转发引擎 (PPE)** | 内置 Dual Packet Processing Engine (双 PPE) 万兆硬件网络加速 | 线速 10G NAT 0% CPU |
 | **系统内存 (RAM)** | 4GB DDR4 高速内存 | 移除低内存设备的负优化清理脚本，保证高缓存命中率 |
 | **板载闪存 (Storage)** | 8GB eMMC 5.1 / MicroSD 卡槽 / SPI NAND | 锁定 2048MB SquashFS 镜像结构，保留充足挂载空间 |
 | **万兆以太网口** | 2x 10G SFP+ 光口 (支持 10G/2.5G/1G 自适应光电模块) | 预置 `luci-app-sfp-info` 实时光模块状态与 DDM 监控 |
