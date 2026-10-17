@@ -10,9 +10,88 @@
 **专为香蕉派 Banana Pi BPi-R4 (MediaTek MT7988A Filogic 880) 定制的万兆纯有线主路由固件**  
 *双万兆 SFP+ | 硬件流表 PPE 32K 扩容 | 开箱即用 M.2 NVMe SSD 支持 | 现代 shadcn/ui 侧边栏主题*
 
-[特性亮点](#-核心特性与深度优化) • [预置套件](#-预置功能与套件清单) • [刷机指引](#-固件产物与刷机指引) • [编译说明](#-手动编译与自定义配置) • [鸣谢](#-鸣谢与开源项目)
+[项目背景](#-项目背景与设计哲学) • [硬件规格](#-硬件规格全景-bpi-r4) • [网络拓扑](#-推荐网络拓扑与架构) • [特性亮点](#-核心特性与深度优化) • [预置套件](#-预置功能与套件清单) • [刷机指引](#-固件产物与刷机指引) • [编译说明](#-手动编译与自定义配置) • [鸣谢](#-鸣谢与开源项目)
 
 </div>
+
+---
+
+## 📌 项目背景与设计哲学
+
+香蕉派 **Banana Pi BPi-R4** 搭载了联发科旗舰级网络芯片 **MT7988A (Filogic 880)**，具备极其强悍的四核 A53 处理能力、双万兆 10G SFP+ 高速接口，以及带有双硬件包处理引擎（Dual PPE）的硬件线速转发能力。
+
+在绝大多数高阶家庭与企业网络组网中，发烧友通常会采用 **“主路由安置于弱电箱/机柜 + 外部独立交换机 + 分布式无线 AP (Wi-Fi 7/6)”** 的架构。然而市面上的通用固件往往存在以下痛点：
+1. **默认携带庞大且冗余的 Wi-Fi 驱动栈**（如 mt76/mt7996/hostapd 等），常驻内核不仅空耗内存，其无线中断甚至会干扰有线万兆包处理；
+2. **未对 MT7988 双 PPE 硬件流表进行扩容**，依然沿用小内存设备的 16K 限制，无法充分发挥 4GB DDR4 大内存的高并发优势；
+3. **遗漏了 BPi-R4 最受瞩目的 M.2 NVMe SSD 驱动**，导致板载 M.2 Key-M 接口插盘无法使用；
+4. **控制台 UI 样式老旧**，缺乏针对多功能主路由的现代化高效管理面板。
+
+本项目贯彻 **“专注万兆有线、剔除一切多余开销、存储生态开箱即用、颜值与性能兼备”** 的设计理念，旨在为 BPi-R4 用户打造最纯粹、最稳定、吞吐最极致的骨干级主路由系统。
+
+---
+
+## 📊 硬件规格全景 (BPi-R4)
+
+| 核心组件 | 规格与特性 | 固件对应调优支持 |
+| :--- | :--- | :--- |
+| **中央处理器 (SoC)** | 联发科 MT7988A (Filogic 880) 四核 ARM Cortex-A53 @ 1.8GHz | 开启多核并发编译与内核优化，屏蔽 devfreq 噪音 |
+| **硬件转发引擎 (PPE)** | 内置 Dual Packet Processing Engine (双 PPE) 万兆硬件网络加速 | **补丁注入将流表项扩容至 32,768**，线速 10G NAT 0% CPU |
+| **系统内存 (RAM)** | 4GB DDR4 高速内存 | 移除低内存设备的负优化清理脚本，保证高缓存命中率 |
+| **板载闪存 (Storage)** | 8GB eMMC 5.1 / MicroSD 卡槽 / SPI NAND | 锁定 2048MB SquashFS 镜像结构，保留充足挂载空间 |
+| **万兆以太网口** | 2x 10G SFP+ 光口 (支持 10G/2.5G/1G 自适应光电模块) | 预置 `luci-app-sfp-info` 实时光模块状态与 DDM 监控 |
+| **千兆以太网口** | 4x 10/100/1000M RJ45 以太网口 (内置千兆 PHY) | 默认配置为高速 LAN 局域网口 |
+| **存储扩展 (M.2 Key-M)** | 1x M.2 2280 Key-M 插槽 (PCIe 3.0 x1 NVMe) | **原生集成 `kmod-nvme` 及 ext4/btrfs/f2fs 存储链** |
+| **外设接口** | 1x USB 3.0 Type-A / 1x M.2 Key-B (5G 扩展) | 预置 `kmod-usb-storage` 与 `kmod-usb-storage-uas` |
+
+---
+
+## 🌐 推荐网络拓扑与架构
+
+```mermaid
+flowchart TD
+    subgraph 外网接入
+        WAN_IN["光纤入户 (FTTR / 10G EPON / XG-PON)"] --> SFP1["10G SFP+ (WAN1) / 猫棒 / 2.5G 电口模块"]
+    end
+
+    subgraph BPi-R4 核心硬件系统
+        SFP1 --> PPE["MT7988A Dual PPE 硬件加速引擎\n(32,768 流表项扩容 / 万兆线速 NAT)"]
+        
+        subgraph 内核与系统服务
+            PPE <--> KERNEL["Linux 6.12 内核 / ImmortalWrt 25.12\n(静音 devfreq cci warning)"]
+            KERNEL --- MOSDNS["MosDNS v5\n(国内白名单直连 / 纯净防污染)"]
+            KERNEL --- CLASH["OpenClash\n(TProxy / TUN 透明代理分流)"]
+            KERNEL --- LUCKY["Lucky / Socat\n(动态域名解析 / 反向代理 / 穿透)"]
+            KERNEL --- EASYTIER["EasyTier / ZeroTier\n(去中心化 Mesh 虚拟局域网)"]
+            KERNEL --- SAMBA["Samba4 / Diskman\n(轻 NAS 高速局域网共享)"]
+        end
+
+        subgraph 存储扩展
+            NVME["M.2 Key-M NVMe 固态硬盘\n(ext4 / btrfs / f2fs 高速存储)"] <--> KERNEL
+        end
+    end
+
+    subgraph 局域网分发
+        PPE --> SFP2["10G SFP+ (LAN1)"]
+        PPE --> RJ45["4x 1G RJ45 (LAN2~5)"]
+        SFP2 --> SWITCH["万兆 / 2.5G 核心交换机"]
+        SWITCH --> AP["全屋 Wi-Fi 7 / Wi-Fi 6 AP 矩阵"]
+        SWITCH --> PC["万兆工作站 / NAS / 服务器集群"]
+        RJ45 --> IOT["智能家居网关 / 打印机 / 电视盒子"]
+    end
+```
+
+---
+
+## 🎯 典型适用场景
+
+1. **🏠 极客万兆家庭网络中枢**：
+   - 适配千兆及以上宽带、FTTR 光纤入户；WAN 口使用 10G SFP+ 接猫棒或光猫，LAN 口 10G SFP+ 直连核心交换机，达成真正的全链路万兆互联。
+2. **📁 轻量级高速边缘 NAS**：
+   - 无需外接笨重的多盘位 NAS，只需在 BPi-R4 底部的 M.2 Key-M 插上一条高性价比 NVMe 固态硬盘，通过 Samba4 协议即可让局域网电脑直接享受数百兆至千兆每秒的高速局域网读写。
+3. **🛡️ 纯净 DNS 与海内外精准分流**：
+   - MosDNS v5 与 OpenClash 深度联动：国内域名秒级直出且无污染，海外流量走分流节点并支持透明网关模式。
+4. **🏢 异地组网与安全内网穿透**：
+   - 借助预置的 Lucky（DDNS/反代）与 EasyTier（基于 Rust 的去中心化 Mesh 组网），无公网 IPv4 亦可高速访问家中的路由器后台、NAS 与个人服务。
 
 ---
 
