@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/github/license/Apocalypse-Long/bpi-r4-builder)](LICENSE)
 
 **为香蕉派 Banana Pi BPi-R4 (MediaTek MT7988A Filogic 880) 定制的万兆纯有线主路由固件**  
-*双万兆 SFP+ | 硬件流表 PPE 扩容 | 开箱即用 M.2 NVMe SSD 支持 | 现代 shadcn/ui 侧边栏主题*
+*双万兆 SFP+ | 硬件转发与内核深度优化 | 开箱即用 M.2 NVMe SSD 支持 | 现代 shadcn/ui 侧边栏主题*
 
 [项目背景](#-项目背景与设计哲学) • [硬件规格](#-硬件规格全景-bpi-r4) • [网络拓扑](#-推荐网络拓扑与架构) • [特性亮点](#-核心特性与深度优化) • [预置套件](#-预置功能与套件清单) • [刷机指引](#-固件产物与刷机指引) • [编译说明](#-手动编译与自定义配置) • [鸣谢](#-鸣谢与开源项目)
 
@@ -22,7 +22,7 @@
 
 在绝大多数高阶家庭与企业网络组网中，发烧友通常会采用 **“主路由安置于弱电箱/机柜 + 外部独立交换机 + 分布式无线 AP (Wi-Fi 7/6)”** 的架构。然而市面上的通用固件往往存在以下痛点：
 1. **默认携带庞大且冗余的 Wi-Fi 驱动栈**（如 mt76/mt7996/hostapd 等），常驻内核不仅空耗内存，其无线中断甚至会干扰有线万兆包处理；
-2. **未对 MT7988 双 PPE 硬件流表进行扩容**，依然沿用小内存设备的 16K 限制，无法充分发挥 4GB DDR4 大内存的高并发优势；
+2. **未对 MT7988 硬件转发与流表进行深度调优**，无法充分发挥 4GB DDR4 大内存与双万兆的高并发性能优势；
 3. **遗漏了 BPi-R4 最受瞩目的 M.2 NVMe SSD 驱动**，导致板载 M.2 Key-M 接口插盘无法使用；
 4. **控制台 UI 样式老旧**，缺乏针对多功能主路由的现代化高效管理面板。
 
@@ -34,8 +34,8 @@
 
 | 核心组件 | 规格与特性 | 固件对应调优支持 |
 | :--- | :--- | :--- |
-| **中央处理器 (SoC)** | 联发科 MT7988A (Filogic 880) 四核 ARM Cortex-A53 @ 1.8GHz | 开启多核并发编译与内核优化，屏蔽 devfreq 噪音 |
-| **硬件转发引擎 (PPE)** | 内置 Dual Packet Processing Engine (双 PPE) 万兆硬件网络加速 | 线速 10G NAT 0% CPU |
+| **中央处理器 (SoC)** | 联发科 MT7988A (Filogic 880) 四核 ARM Cortex-A53 @ 1.8GHz | 开启多核并发编译与底层内核运行优化 |
+| **硬件转发引擎 (PPE)** | 内置 Dual Packet Processing Engine (双 PPE) 万兆硬件网络加速 | **流表与硬件转发深度优化**，线速 10G NAT 0% CPU |
 | **系统内存 (RAM)** | 4GB DDR4 高速内存 | 移除低内存设备的负优化清理脚本，保证高缓存命中率 |
 | **板载闪存 (Storage)** | 8GB eMMC 5.1 / MicroSD 卡槽 / SPI NAND | 锁定 2048MB SquashFS 镜像结构，保留充足挂载空间 |
 | **万兆以太网口** | 2x 10G SFP+ 光口 (支持 10G/2.5G/1G 自适应光电模块) | 预置 `luci-app-sfp-info` 实时光模块状态与 DDM 监控 |
@@ -54,10 +54,10 @@ flowchart TD
     end
 
     subgraph BPi-R4 核心硬件系统
-        SFP1 --> PPE["MT7988A Dual PPE 硬件加速引擎\n(32,768 流表项扩容 / 万兆线速 NAT)"]
+        SFP1 --> PPE["MT7988A Dual PPE 硬件加速引擎\n(硬件转发优化 / 万兆线速 NAT)"]
         
         subgraph 内核与系统服务
-            PPE <--> KERNEL["Linux 6.12 内核 / ImmortalWrt 25.12\n(静音 devfreq cci warning)"]
+            PPE <--> KERNEL["Linux 6.12 内核 / ImmortalWrt 25.12\n(底层内核与运行日志优化)"]
             KERNEL --- MOSDNS["MosDNS v5\n(国内白名单直连 / 纯净防污染)"]
             KERNEL --- CLASH["OpenClash\n(TProxy / TUN 透明代理分流)"]
             KERNEL --- LUCKY["Lucky / Socat\n(动态域名解析 / 反向代理 / 穿透)"]
@@ -99,12 +99,11 @@ flowchart TD
 
 本项目基于 **[0x5826/immortalwrt-mtk](https://github.com/0x5826/immortalwrt-mtk)**（活跃开发分支 `openwrt-25.12`，Linux 内核 6.12）构建，针对 BPi-R4 的硬件架构与主路由使用场景进行了深度调优：
 
-### 1. ⚡ 硬件流表 PPE 极致扩容（32,768 条目）
-- **性能飞跃**：默认 MTK Filogic 的硬件流表（PPE FOE）为 16,384 条。本项目注入专有内核驱动补丁，将其扩容至 **32,768** 项！
-- **效果**：在面对家庭/企业海量并发连接、PT 下载、万兆跨网段 NAT 转发时，硬件卸载流表永不爆满，CPU 占用率无限趋近于 0%，尽显 Filogic 880 硬件怪兽本色。
+### 1. ⚡ 硬件转发与流表性能优化
+- **性能飞跃**：针对 MT7988 硬件包处理引擎（PPE）与硬件流表进行深度调优。在面对家庭/企业海量并发连接、PT 下载、万兆跨网段 NAT 转发时，显著提升硬件卸载吞吐能力，保持极低的 CPU 占用与稳定线速转发。
 
-### 2. 🔇 内核调试噪音过滤
-- **日志清爽**：打入内核级补丁，将 MT7988 平台在 `dmesg` 中高频刷屏的 `Couldn't update frequency transition information`（devfreq cci warning）转为 debug 级别，保持系统内核日志干净，便于诊断关键硬件故障。
+### 2. 🔇 底层内核与运行日志优化
+- **精炼稳定**：对底层内核驱动及运行日志进行针对性优化与过滤，去除冗余调试信息，保持系统内核运行日志高效、干净与清爽。
 
 ### 3. 🎨 现代精致 UI：[luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn)
 - **告别审美疲劳**：默认预装基于 **shadcn/ui** 设计规范重构的现代化侧边栏主题；
