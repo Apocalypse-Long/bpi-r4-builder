@@ -1,4 +1,4 @@
-name: Build Banana Pi BPi-R4 Firmware
+name: Build Banana Pi BPI-R4 Firmware
 
 on:
   repository_dispatch:
@@ -158,7 +158,7 @@ jobs:
           sha256sum * > SHA256SUMS 2>/dev/null || true
 
           cat <<EOF > release_notes.txt
-          ### 🚀 Banana Pi BPi-R4 固件构建发布
+          ### 🚀 Banana Pi BPI-R4 固件构建发布
 
           - **构建日期**: $(date "+%Y-%m-%d %H:%M:%S %Z")
           - **上游源码**: [${{ env.REPO_URL }}](${{ env.REPO_URL }})
@@ -182,7 +182,7 @@ jobs:
       - name: 上传固件至 GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: BPi-R4-ImmortalWrt-${{ env.FILE_DATE }}
+          name: BPI-R4-ImmortalWrt-${{ env.FILE_DATE }}
           path: ${{ env.ARTIFACT_PATH }}
           retention-days: 14
 
@@ -192,7 +192,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: BPi-R4-${{ env.TAG_DATE }}
-          name: Banana Pi BPi-R4 固件发布 (${{ env.TAG_DATE }})
+          tag_name: BPI-R4-${{ env.TAG_DATE }}
+          name: Banana Pi BPI-R4 固件发布 (${{ env.TAG_DATE }})
           body_path: /workdir/upload/release_notes.txt
           files: /workdir/upload/*
