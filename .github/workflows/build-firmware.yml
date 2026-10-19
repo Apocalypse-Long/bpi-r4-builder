@@ -27,6 +27,7 @@ env:
   UPLOAD_RELEASE: ${{ inputs.upload_release != false }}
   CONFIG_FILE: bpir4.config
   TZ: Asia/Shanghai
+  CCACHE_DIR: /workdir/.ccache
 
 jobs:
   build:
@@ -40,30 +41,19 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          # 快速清理非必要大型预装工具，释放约 20GB 磁盘空间
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          # 快速清理非必要大型预装工具，释放约 25GB 磁盘空间
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/local/share/boost
           sudo timedatectl set-timezone "$TZ"
-          sudo mkdir -p /workdir
-          sudo chown $USER:$GROUPS /workdir
+          sudo mkdir -p /workdir "$CCACHE_DIR"
+          sudo chown -R $USER:$GROUPS /workdir
 
-          # 优化 apt 安装：跳过推荐文档与 man-db 更新，大幅压缩环境准备时间 (由 20min 压至 1~2min)
+          # 优化 apt 安装：跳过推荐文档与 man-db 更新，大幅压缩环境准备时间
           sudo apt-get -q update
           sudo apt-get -y --no-install-recommends install \
             build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
             gettext git libncurses5-dev libssl-dev python3-pyelftools rsync \
             unzip zlib1g-dev file ccache xsltproc device-tree-compiler \
             libelf-dev p7zip p7zip-full
-
-      - name: 恢复 Ccache 与源码依赖缓存
-        uses: actions/cache@v4
-        with:
-          path: |
-            /workdir/openwrt/.ccache
-            /workdir/openwrt/dl
-          key: ${{ runner.os }}-openwrt-bpir4-${{ env.REPO_BRANCH }}-${{ hashFiles('bpir4.config') }}
-          restore-keys: |
-            ${{ runner.os }}-openwrt-bpir4-${{ env.REPO_BRANCH }}-
-            ${{ runner.os }}-openwrt-bpir4-
 
       - name: 克隆 0x5826 专属源码与集成外部插件
         working-directory: /workdir
@@ -73,8 +63,9 @@ jobs:
           git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
           cd openwrt
 
-          # 禁用有依赖冲突隐患的 video feed
+          # 禁用有依赖冲突或纯有线不使用的 feeds (video, telephony)
           sed -i 's/^src-git video/#src-git video/g' feeds.conf.default 2>/dev/null || true
+          sed -i 's/^src-git telephony/#src-git telephony/g' feeds.conf.default 2>/dev/null || true
 
           # 1. 集成 Lucky 官方源码
           git clone --depth 1 https://github.com/gdy666/luci-app-lucky.git package/lucky
@@ -95,6 +86,18 @@ jobs:
           ./scripts/feeds update -a
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           ./scripts/feeds install -a
+
+      - name: 恢复 Ccache 与源码依赖缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            /workdir/openwrt/dl
+          key: ${{ runner.os }}-openwrt-bpir4-${{ env.REPO_BRANCH }}-${{ hashFiles('bpir4.config') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-bpir4-${{ env.REPO_BRANCH }}-${{ hashFiles('bpir4.config') }}-
+            ${{ runner.os }}-openwrt-bpir4-${{ env.REPO_BRANCH }}-
+            ${{ runner.os }}-openwrt-bpir4-
 
       - name: 注入自定义 Patch 补丁 (内核与系统分流应用)
         working-directory: /workdir/openwrt
@@ -117,15 +120,20 @@ jobs:
             echo "==> 未发现 patches/*.patch 文件，跳过此步骤。"
           fi
 
-      - name: 加载自定义配置与预设
+      - name: 配置 Ccache 与加载自定义配置
         working-directory: /workdir/openwrt
         run: |
           [ -e $GITHUB_WORKSPACE/$CONFIG_FILE ] && cp $GITHUB_WORKSPACE/$CONFIG_FILE .config
           [ -d $GITHUB_WORKSPACE/files ] && cp -rf $GITHUB_WORKSPACE/files/* files/ 2>/dev/null || true
 
-          # 配置 Ccache 最大缓存占用为 5GB
-          export CCACHE_DIR=/workdir/openwrt/.ccache
-          ccache -M 5G 2>/dev/null || true
+          # 配置 Ccache 最大缓存占用为 5GB 并打印初始状态
+          mkdir -p "$CCACHE_DIR"
+          ccache -M 5G
+          ccache -z
+          echo "=========================================================="
+          echo " 编译前 Ccache 状态"
+          echo "=========================================================="
+          ccache -s
 
           make defconfig
 
@@ -143,6 +151,10 @@ jobs:
           echo " 开始多核并行编译 (核心数: $(nproc))"
           echo "=========================================================="
           make -j$(($(nproc) + 1)) || make -j1 V=s
+          echo "=========================================================="
+          echo " 编译后 Ccache 命中统计"
+          echo "=========================================================="
+          ccache -s
           echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
           echo "TAG_DATE=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
 
@@ -154,7 +166,8 @@ jobs:
           cp -f bin/targets/mediatek/filogic/*.* /workdir/upload/ 2>/dev/null || true
           cd /workdir/upload
 
-          # 生成 SHA256 校验清单（保留原生 sha256sums 并补充总清单）
+          # 生成 SHA256 校验清单（排除自身）
+          rm -f SHA256SUMS
           sha256sum * > SHA256SUMS 2>/dev/null || true
 
           cat <<EOF > release_notes.txt
@@ -168,7 +181,7 @@ jobs:
             - 🔇 **系统日志优化**: 过滤底层调试输出，保持系统日志整洁。
             - 💾 **存储驱动支持**: 预装 M.2 NVMe SSD 与常用文件系统驱动（ext4/btrfs/f2fs）。
             - 🌐 **纯有线主路由适配**: 移除无线驱动及不必要的后台定时清理脚本。
-            - 🎨 **界面主题**: 预置基于 shadcn/ui 风格的侧边栏现代主题 (`luci-theme-shadcn`)。
+            - 🎨 **界面主题**: 预置基于 shadcn/ui 风格的侧边栏现代主题 (\`luci-theme-shadcn\`)。
             - 🛠️ **常用套件**: MosDNS v5、Lucky、EasyTier、NetSpeedTest、Samba4、OpenClash 等。
 
           #### 🔐 SHA256 校验和
