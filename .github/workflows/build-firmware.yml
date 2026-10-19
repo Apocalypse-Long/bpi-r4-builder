@@ -163,13 +163,13 @@ jobs:
           - **构建日期**: $(date "+%Y-%m-%d %H:%M:%S %Z")
           - **上游源码**: [${{ env.REPO_URL }}](${{ env.REPO_URL }})
           - **构建分支**: \`${{ env.REPO_BRANCH }}\`
-          - **核心特性与优化**:
-            - ⚡ **硬件转发与流表性能优化**: 针对 MT7988 硬件转发引擎与流表深度调优，释放万兆极致 NAT 转发吞吐。
-            - 🔇 **底层内核与系统日志优化**: 精炼底层驱动与内核日志，保持系统运行高效清爽。
-            - 💾 **完整存储驱动支持**: 预装 M.2 NVMe SSD 与 USB 3.0 大容量存储驱动（ext4/btrfs/f2fs）。
-            - 🌐 **纯有线万兆主路由定制**: 屏蔽所有无线射频开销，移除清理内存等副作用脚本。
-            - 🎨 **现代化 UI 主题**: 预置基于 shadcn/ui 设计语言的侧边栏现代主题 (`luci-theme-shadcn`)。
-            - 🛠️ **精选功能套件**: MosDNS v5、Lucky、EasyTier、NetSpeedTest、Samba4、OpenClash 等。
+          - **核心特性与说明**:
+            - ⚡ **硬件包转发优化**: 适配 MT7988 硬件转发引擎与流表卸载，降低高并发 CPU 负载。
+            - 🔇 **系统日志优化**: 过滤底层调试输出，保持系统日志整洁。
+            - 💾 **存储驱动支持**: 预装 M.2 NVMe SSD 与常用文件系统驱动（ext4/btrfs/f2fs）。
+            - 🌐 **纯有线主路由适配**: 移除无线驱动及不必要的后台定时清理脚本。
+            - 🎨 **界面主题**: 预置基于 shadcn/ui 风格的侧边栏现代主题 (`luci-theme-shadcn`)。
+            - 🛠️ **常用套件**: MosDNS v5、Lucky、EasyTier、NetSpeedTest、Samba4、OpenClash 等。
 
           #### 🔐 SHA256 校验和
           \`\`\`text
