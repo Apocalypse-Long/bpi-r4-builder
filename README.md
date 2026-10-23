@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/github/license/Apocalypse-Long/bpi-r4-builder)](LICENSE)
 
 **为香蕉派 Banana Pi BPI-R4 (MediaTek MT7988A Filogic 880) 定制的纯有线固件**  
-*双万兆 SFP+ | 硬件包转发优化 | 开箱即用 M.2 NVMe SSD 支持 | 现代 shadcn/ui 侧边栏主题*
+*双万兆 SFP+ | Cortex-A73 编译调优 & 硬件包转发卸载 | 开箱即用 M.2 NVMe SSD 支持 | 现代 shadcn/ui 侧边栏主题*
 
 [项目背景](#-项目背景与设计说明) • [硬件规格](#-硬件规格全景-bpi-r4) • [网络拓扑](#-推荐网络拓扑与架构) • [典型场景](#-典型适用场景) • [特性说明](#-核心特性与优化说明) • [预置套件](#-预置功能与套件清单) • [刷机指引](#-固件产物与刷机指引) • [编译说明](#-手动编译与自定义配置) • [鸣谢](#-鸣谢与开源项目)
 
@@ -21,10 +21,10 @@
 香蕉派 **Banana Pi BPI-R4** 搭载联发科 **MT7988A (Filogic 880)** 芯片，具备四核 ARM Cortex-A73 @ 1.8GHz 处理器、双 10G SFP+ 高速接口，以及三硬件包处理引擎（Triple PPE / 3x PPE），支持硬件包转发加速。
 
 在家庭或小型办公网络中，常见采用 **“主路由置于机柜/弱电箱 + 交换机 + 独立无线 AP”** 的组网方式。针对此类纯有线主路由场景，本项目对固件进行了适配与精简：
-1. **精简无线组件**：移除默认的无线驱动（如 mt76/mt7996/hostapd 等），减少不必要的常驻后台与内存开销；
-2. **硬件转发配置优化**：适配 MT7988 硬件包处理引擎，开启硬件流表卸载以降低高负载下的 CPU 占用；
+1. **精简无线组件**：彻底移除无线驱动与固件（如 mt76/mt7996/hostapd/wpad 等），减少不必要的常驻后台与内存开销；
+2. **编译器与硬件转发调优**：启用 Cortex-A73 指令集与流水线编译优化（`-O2 -pipe -march=armv8-a+crypto+crc -mtune=cortex-a73`），并开启 MT7988 硬件流表卸载以降低高负载下的 CPU 占用；
 3. **补全存储驱动**：内置 M.2 NVMe 驱动与常用文件系统工具，支持直接挂载固态硬盘；
-4. **管理界面升级**：默认预置基于 shadcn/ui 风格的侧边栏主题，改善管理面板的日常操作体验。
+4. **轻量现代组件**：采用原生适配 `fw4/nftables` 与 `ucode` 的 **Nikki (Mihomo)** 替代传统依赖庞大的代理插件，并默认预置基于 `shadcn/ui` 风格的侧边栏主题。
 
 ---
 
@@ -32,7 +32,7 @@
 
 | 核心组件 | 规格与特性 | 固件适配说明 |
 | :--- | :--- | :--- |
-| **中央处理器 (SoC)** | 联发科 MT7988A (Filogic 880) **四核 ARM Cortex-A73 @ 1.8GHz** | 针对 Cortex-A73 架构调优编译，包含底层驱动优化 |
+| **中央处理器 (SoC)** | 联发科 MT7988A (Filogic 880) **四核 ARM Cortex-A73 @ 1.8GHz** | 启用 `-O2` 与 `armv8-a+crypto+crc` / `cortex-a73` 编译优化，保留 `aarch64_cortex-a53` 软件源兼容 |
 | **硬件转发引擎 (PPE)** | **三硬件包处理引擎（Triple PPE / 3x PPE）**，分别对应内置交换机与两个 10G SFP+ 通道 | **开启硬件流量卸载**，降低高并发 NAT 转发时的 CPU 占用 |
 | **系统内存 (RAM)** | **4GB / 8GB DDR4 内存** | 移除不必要的后台清理脚本，产物提供 4GB/8GB 对应引导文件 |
 | **板载闪存 (Storage)** | 8GB eMMC 5.1 / MicroSD 卡槽 / SPI NAND / SPI NOR | 设定 2048MB SquashFS 分区结构，预留充裕空间 |
@@ -55,9 +55,9 @@ flowchart TD
         SFP1 --> PPE["MT7988A Triple PPE 硬件加速引擎\n(3x PPE 硬件 NAT 转发 / 内部 10Gbps 上联)"]
         
         subgraph 内核与系统服务
-            PPE <--> KERNEL["Linux 6.12 内核 / ImmortalWrt 25.12\n(A73 架构调优 / 内核与运行日志优化)"]
+            PPE <--> KERNEL["Linux 6.12 内核 / ImmortalWrt 25.12\n(Cortex-A73 编译调优 / 内核与运行日志优化)"]
             KERNEL --- MOSDNS["MosDNS v5\n(国内直连 / 域名防污染)"]
-            KERNEL --- CLASH["OpenClash\n(TProxy / TUN 代理分流)"]
+            KERNEL --- NIKKI["Nikki (Mihomo)\n(fw4/nftables TProxy & TUN 分流)"]
             KERNEL --- LUCKY["Lucky / Socat\n(动态域名解析 / 反向代理 / 穿透)"]
             KERNEL --- EASYTIER["EasyTier / ZeroTier\n(去中心化组网)"]
             KERNEL --- SAMBA["Samba4 / Diskman\n(局域网文件共享)"]
@@ -87,8 +87,8 @@ flowchart TD
    - 适用于千兆及以上宽带或 FTTR 光纤入户场景；WAN 口使用**最左侧 10G SFP+ (eth2)** 连接光猫或猫棒，相邻的**次左侧 10G SFP+ (eth1)** 及千兆电口连接交换机与内网设备。
 2. **📁 轻量级网络存储 (NAS)**：
    - 利用板载 M.2 Key-M (PCIe 3.0 x2) 插槽接入 NVMe 固态硬盘，配合 Samba4 与 Diskman 插件实现局域网文件共享，满足数百 MB/s 至万兆级别的高速读写需求。
-3. **🛡️ DNS 防污染与网络分流**：
-   - 配合 MosDNS v5 与 OpenClash，实现国内常用域名直连防污染与海外流量规则分流。
+3. **🛡️ DNS 防污染与透明分流**：
+   - 配合 MosDNS v5 与 Nikki (Mihomo)，基于原生 `fw4` (`nftables`) 实现国内常用域名直连防污染与海外流量规则分流。
 4. **🏢 异地组网与远程访问**：
    - 借助预置的 Lucky（DDNS/反代）与 EasyTier / ZeroTier 虚拟局域网工具，在无公网 IPv4 的网络环境下也能远程访问路由器后台与内网服务。
 
@@ -98,8 +98,9 @@ flowchart TD
 
 本项目基于 **[0x5826/immortalwrt-mtk](https://github.com/0x5826/immortalwrt-mtk)**（开发分支 `openwrt-25.12`，Linux 内核 6.12）构建，针对 BPI-R4 的硬件架构与主路由使用场景进行了适配与调优：
 
-### 1. ⚡ 硬件包转发优化
-- **流表与硬件卸载**：适配 MT7988 三硬件包处理引擎（Triple PPE），开启硬件流表卸载功能。在大连接数并发或跨网段 NAT 转发时，有效降低 CPU 占用，提升整体吞吐表现。
+### 1. ⚙️ Cortex-A73 编译调优与硬件包转发优化
+- **架构指令集调优**：在保持 `aarch64_cortex-a53` 官方软件源兼容性的前提下，通过 `CONFIG_TARGET_OPTIMIZATION` 开启 `-O2 -pipe -march=armv8-a+crypto+crc -mtune=cortex-a73` 编译优化，并集成 `kmod-crypto-hw-safexcel` 硬件加密驱动；
+- **流表与硬件卸载**：适配 MT7988 三硬件包处理引擎（Triple PPE），开启硬件流表卸载功能，在大连接数并发或跨网段 NAT 转发时有效降低 CPU 占用。
 
 ### 2. 🔇 内核与运行日志优化
 - **精简日志**：对底层驱动及运行日志进行针对性过滤，去除无用的调试冗余信息，保持系统日志清晰整洁。
@@ -115,11 +116,11 @@ flowchart TD
 - **文件共享**：预置 **Samba4** 与 **Diskman** 磁盘管理插件，便于挂载与局域网文件共享。
 
 ### 5. 🌐 纯有线场景精简
-- **精简无线驱动**：移除 `mt76`、`mt7915`、`mt7996`、`hostapd`、`wpad` 等无线驱动与固件，减少系统常驻内存与多余后台进程；
+- **精简无线驱动与冗余运行库**：彻底移除 `mt76`、`mt7915`、`mt7996`、`mt7988-wo-firmware`、`hostapd`、`wpad-openssl` 等全部无线驱动与固件，同时移除沉重的 Ruby 运行时依赖；
 - **移除冗余脚本**：移除了不必要的定时释放内存与自动重启插件，依靠内核原生的内存管理机制，保障系统长期稳定运行。
 
 ### 6. 🚀 构建与发布流程
-- **编译缓存加速**：引入 **Ccache** 与 **dl 源码包持久化缓存**，缩短后续重复编译耗时；
+- **编译缓存加速**：启用 OpenWrt 原生 **Ccache** 与 **dl 源码包持久化缓存**，缩短后续重复编译耗时；
 - **自动归档发布**：工作流构建完成后自动生成带有 SHA256 校验码的 GitHub Releases。
 
 ---
@@ -128,8 +129,8 @@ flowchart TD
 
 | 类别 | 预置插件 / 工具 | 说明与典型用途 |
 | :--- | :--- | :--- |
+| **透明代理** | `luci-app-nikki` (`mihomo-meta`) | 基于 Mihomo (Clash.Meta) 核心，原生适配 `fw4/nftables` 与 `ucode`，支持 TProxy 与 TUN 模式 |
 | **网络分流** | `luci-app-mosdns` (v5) | DNS 分流与防污染工具，带中文图形化界面 |
-| **透明代理** | `luci-app-openclash` | 代理客户端，支持 TProxy 与 TUN 模式 |
 | **内网穿透** | `luci-app-lucky` | 支持 DDNS 动态解析、反向代理、端口转发与 WebDAV |
 | **异地组网** | `luci-app-easytier` | 去中心化 Mesh 组网工具，支持点对点内网互通 |
 | **虚拟局域网** | `luci-app-zerotier` | P2P 虚拟局域网互通与内网穿透 |
@@ -237,6 +238,7 @@ BPI-R4 主板上带有 **2-Pin 硬件启动拨码开关**（标有 `B0`、`B1` �
 
 - [0x5826/immortalwrt-mtk](https://github.com/0x5826/immortalwrt-mtk) - MTK Filogic 平台固件分支
 - [ImmortalWrt 官方社区](https://github.com/immortalwrt/immortalwrt) & [OpenWrt 官方项目](https://github.com/openwrt/openwrt)
+- [nikkinikki-org/OpenWrt-nikki](https://github.com/nikkinikki-org/OpenWrt-nikki) - 基于 Mihomo 的现代 OpenWrt 透明代理套件
 - [eamonxg/luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn) - 现代化 shadcn/ui 侧边栏主题
 - [sbwml/luci-app-mosdns](https://github.com/sbwml/luci-app-mosdns) - MosDNS v5 中文管理套件
 - [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky) - Lucky 端口转发与反代工具
