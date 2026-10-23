@@ -57,9 +57,9 @@ flowchart TD
         subgraph 内核与系统服务
             PPE <--> KERNEL["Linux 6.12 内核 / ImmortalWrt 25.12\n(Cortex-A73 编译调优 / 内核与运行日志优化)"]
             KERNEL --- MOSDNS["MosDNS v5\n(国内直连 / 域名防污染)"]
-            KERNEL --- NIKKI["Nikki (Mihomo) / FlowProxy\n(fw4/nftables TProxy & 策略分流)"]
+            KERNEL --- NIKKI["Nikki (Mihomo)\n(fw4/nftables TProxy & TUN 分流)"]
             KERNEL --- LUCKY["Lucky / Cloudflared Next / Socat\n(DDNS / Cloudflare 隧道 / 反向代理)"]
-            KERNEL --- EASYTIER["EasyTier Next / ZeroTier\n(去中心化 Mesh 异地组网)"]
+            KERNEL --- EASYTIER["EasyTier / ZeroTier\n(去中心化 Mesh 异地组网)"]
             KERNEL --- SAMBA["Samba4 / Diskman\n(局域网文件共享)"]
         end
 
@@ -88,9 +88,9 @@ flowchart TD
 2. **📁 轻量级网络存储 (NAS)**：
    - 利用板载 M.2 Key-M (PCIe 3.0 x2) 插槽接入 NVMe 固态硬盘，配合 Samba4 与 Diskman 插件实现局域网文件共享，满足数百 MB/s 至万兆级别的高速读写需求。
 3. **🛡️ DNS 防污染与透明分流**：
-   - 配合 MosDNS v5、Nikki (Mihomo) 与 FlowProxy，基于原生 `fw4` (`nftables`) 实现国内常用域名直连防污染、海外流量分流与策略路由。
+   - 配合 MosDNS v5 与 Nikki (Mihomo)，基于原生 `fw4` (`nftables`) 实现国内常用域名直连防污染与海外流量规则分流。
 4. **🏢 异地组网与远程访问**：
-   - 借助预置的 Lucky（DDNS/反代）、Cloudflared Next（Cloudflare Tunnel 隧道）以及 EasyTier Next / ZeroTier 虚拟局域网工具，在无公网 IPv4 的网络环境下也能远程访问路由器后台与内网服务。
+   - 借助预置的 Lucky（DDNS/反代）、Cloudflared Next（Cloudflare Tunnel 隧道）以及 EasyTier / ZeroTier 虚拟局域网工具，在无公网 IPv4 的网络环境下也能远程访问路由器后台与内网服务。
 
 ---
 
@@ -130,11 +130,10 @@ flowchart TD
 | 类别 | 预置插件 / 工具 | 说明与典型用途 |
 | :--- | :--- | :--- |
 | **透明代理** | `luci-app-nikki` (`mihomo-meta`) | 基于 Mihomo (Clash.Meta) 核心，原生适配 `fw4/nftables` 与 `ucode`，支持 TProxy 与 TUN 模式 |
-| **策略分流** | `luci-app-flowproxy` | 专为 OpenWrt `fw4` (`nftables`) 设计的透明策略路由与流量分流工具 |
 | **网络分流** | `luci-app-mosdns` (v5) | DNS 分流与防污染工具，带中文图形化界面 |
-| **综合穿透** | `luci-app-lucky` | 支持 DDNS 动态解析、反向代理、端口转发、ACME 证书与 WOL |
+| **内网穿透** | `luci-app-lucky` | 支持 DDNS 动态解析、反向代理、端口转发与 WebDAV |
 | **隧道穿透** | `luci-app-cloudflared-next` | Cloudflare Tunnel (Argo Tunnel) 客户端与图形化 Token 管理面板 |
-| **异地组网** | `luci-app-easytier-next` | 去中心化 Mesh 异地组网工具（Next 现代版，带动态拓扑可视化与 Web 控制台） |
+| **异地组网** | `luci-app-easytier` | 去中心化 Mesh 异地组网工具，支持点对点内网互通 |
 | **虚拟局域网** | `luci-app-zerotier` | P2P 虚拟局域网互通与内网穿透 |
 | **文件共享** | `luci-app-samba4` | 局域网文件共享服务，支持 Windows / macOS 挂载 |
 | **磁盘管理** | `luci-app-diskman` | 磁盘分区、格式化、挂载管理及 S.M.A.R.T. 健康检查 |
@@ -239,8 +238,10 @@ BPI-R4 主板上带有 **2-Pin 硬件启动拨码开关**（标有 `B0`、`B1` �
 ## 📜 鸣谢与开源项目
 
 - [0x5826/immortalwrt-mtk](https://github.com/0x5826/immortalwrt-mtk) - MTK Filogic 平台固件分支
-- [0x5826/openwrt-packages-extras](https://github.com/0x5826/openwrt-packages-extras) - 现代 OpenWrt 扩展软件源（EasyTier Next / Cloudflared Next / FlowProxy / Lucky）
+- [0x5826/openwrt-packages-extras](https://github.com/0x5826/openwrt-packages-extras) - 现代 OpenWrt 扩展软件源（Cloudflared Next）
 - [ImmortalWrt 官方社区](https://github.com/immortalwrt/immortalwrt) & [OpenWrt 官方项目](https://github.com/openwrt/openwrt)
 - [nikkinikki-org/OpenWrt-nikki](https://github.com/nikkinikki-org/OpenWrt-nikki) - 基于 Mihomo 的现代 OpenWrt 透明代理套件
 - [eamonxg/luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn) - 现代化 shadcn/ui 侧边栏主题
 - [sbwml/luci-app-mosdns](https://github.com/sbwml/luci-app-mosdns) - MosDNS v5 中文管理套件
+- [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky) - Lucky 端口转发与反代工具
+- [EasyTier](https://github.com/EasyTier/luci-app-easytier) - 去中心化 Mesh 组网工具
