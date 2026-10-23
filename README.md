@@ -140,7 +140,8 @@ flowchart TD
 | **吞吐测速** | `luci-app-netspeedtest` | 网页端测速与 iPerf3 服务端 |
 | **链路监控** | `luci-app-sfp-info` | 实时查看双 10G SFP+ 光电模块温度、电压、接收光功率 |
 | **指标采集** | `prometheus-node-exporter-lua` | 系统性能与网络流量指标暴露，配合 Home Assistant / Grafana 监控 |
-| **系统运维** | `luci-app-ttyd` | 网页端终端工具 (Web Shell) |
+| **系统运维** | `luci-app-ttyd` / `luci-app-filemanager` | 网页端终端工具 (Web Shell) 与原生 Web 文件上传/下载/在线编辑管理器 |
+| **软件安装** | `luci-app-package-manager` | 支持网页端直接上传本地 `.ipk` / `.apk` 软件包并一键离线安装 |
 | **内核日志** | `luci-app-log` | 系统日志与内核 dmesg 查看器 |
 | **端口映射** | `luci-app-upnp` / `luci-app-socat` | UPnP 端口映射与端口转发工具 |
 | **现代界面** | `luci-theme-shadcn` | 默认主题：基于 shadcn/ui 风格的侧边栏主题 |
