@@ -53,7 +53,7 @@ jobs:
             build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
             gettext git libncurses5-dev libssl-dev python3-pyelftools rsync \
             unzip zlib1g-dev file ccache xsltproc device-tree-compiler \
-            libelf-dev p7zip p7zip-full
+            libelf-dev p7zip p7zip-full wget curl
 
       - name: 克隆源码、更新 Feeds 与集成外部插件
         working-directory: /workdir
@@ -67,31 +67,26 @@ jobs:
           sed -i 's/^src-git video/#src-git video/g' feeds.conf.default 2>/dev/null || true
           sed -i 's/^src-git telephony/#src-git telephony/g' feeds.conf.default 2>/dev/null || true
 
-          # 确保集成 Nikki (Mihomo 透明代理套件) Feed 源
+          # 确保集成 Nikki 与 0x5826/openwrt-packages-extras 扩展软件源
           grep -q "OpenWrt-nikki" feeds.conf.default || \
             echo "src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;main" >> feeds.conf.default
+          grep -q "openwrt-packages-extras" feeds.conf.default || \
+            echo "src-git dante_extras https://github.com/0x5826/openwrt-packages-extras.git" >> feeds.conf.default
 
-          # 更新 Feeds 并清理将被外部高版本仓库替代或存在依赖冲突的包目录
+          # 更新 Feeds 并清理将被外部 MosDNS v5 替代或存在依赖冲突的包目录
           ./scripts/feeds update -a
           rm -rf feeds/packages/sound/mpd feeds/packages/sound/squeezelite
           rm -rf feeds/packages/net/mosdns feeds/packages/net/v2ray-geodata feeds/luci/applications/luci-app-mosdns
-          rm -rf feeds/dante_extras/lucky feeds/dante_extras/luci-app-lucky
           ./scripts/feeds install -a
 
-          # 1. 集成 Lucky 官方源码
-          git clone --depth 1 https://github.com/gdy666/luci-app-lucky.git package/lucky
-
-          # 2. 集成 MosDNS v5 与 v2ray-geodata 套件
+          # 1. 集成 MosDNS v5 与 v2ray-geodata 套件
           git clone --depth 1 https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
           git clone --depth 1 https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 
-          # 3. 集成 EasyTier 去中心化异地组网套件
-          git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier
-
-          # 4. 集成 NetSpeedTest (iPerf3 测速面板)
+          # 2. 集成 NetSpeedTest (iPerf3 测速面板)
           git clone --depth 1 https://github.com/muink/luci-app-netspeedtest.git package/luci-app-netspeedtest
 
-          # 5. 集成 shadcn/ui 现代侧边栏主题 (luci-theme-shadcn)
+          # 3. 集成 shadcn/ui 现代侧边栏主题 (luci-theme-shadcn)
           git clone --depth 1 https://github.com/eamonxg/luci-theme-shadcn.git package/luci-theme-shadcn
 
       - name: 恢复 Ccache 与源码依赖缓存
@@ -147,7 +142,7 @@ jobs:
           echo "=========================================================="
           echo " 关键编译配置生效核验"
           echo "=========================================================="
-          grep -E 'CONFIG_TARGET_ARCH_PACKAGES|CONFIG_TARGET_OPTIMIZATION|CONFIG_CCACHE=|CONFIG_CCACHE_DIR|CONFIG_PACKAGE_nikki|CONFIG_PACKAGE_luci-app-nikki|CONFIG_PACKAGE_mihomo' .config || true
+          grep -E 'CONFIG_TARGET_ARCH_PACKAGES|CONFIG_TARGET_OPTIMIZATION|CONFIG_CCACHE=|CONFIG_CCACHE_DIR|CONFIG_PACKAGE_nikki|CONFIG_PACKAGE_luci-app-nikki|CONFIG_PACKAGE_mihomo|CONFIG_PACKAGE_easytier-next|CONFIG_PACKAGE_cloudflared-next|CONFIG_PACKAGE_luci-app-flowproxy|CONFIG_PACKAGE_lucky' .config || true
 
       - name: 下载软件包依赖缓存
         working-directory: /workdir/openwrt
@@ -195,7 +190,7 @@ jobs:
             - 💾 **存储驱动支持**: 预装 M.2 NVMe SSD 与常用文件系统驱动（ext4/btrfs/f2fs）。
             - 🌐 **纯有线主路由适配**: 彻底移除无线驱动、固件及不必要的后台定时清理脚本。
             - 🎨 **界面主题**: 预置基于 shadcn/ui 风格的侧边栏现代主题 (\`luci-theme-shadcn\`)。
-            - 🛠️ **常用套件**: Nikki (Mihomo)、MosDNS v5、Lucky、EasyTier、NetSpeedTest、Samba4 等。
+            - 🛠️ **常用套件**: Nikki (Mihomo)、FlowProxy、MosDNS v5、Lucky、EasyTier Next、Cloudflared Next、NetSpeedTest、Samba4 等。
 
           #### 🔐 SHA256 校验和
           \`\`\`text
