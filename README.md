@@ -105,9 +105,9 @@ flowchart TD
 ### 2. 🔇 内核与运行日志优化
 - **精简日志**：对底层驱动及运行日志进行针对性过滤，去除无用的调试冗余信息，保持系统日志清晰整洁。
 
-### 3. 🎨 现代界面主题：[luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn)
-- **界面体验**：默认预置基于 **shadcn/ui** 风格的侧边栏主题；
-- **自适应布局**：支持可折叠的多级导航菜单、暗黑模式切换，排版更紧凑；
+### 3. 🎨 现代界面主题：[luci-theme-shadcn](https://github.com/Apocalypse-Long/luci-theme-shadcn)
+- **界面体验**：默认预置基于 **shadcn/ui** 风格的现代主题，支持侧边栏与顶栏布局切换；
+- **可视化定制**：集成 `luci-app-shadcn-config`（含中文语言包），支持界面密度、浅/深色主色、昼夜模式、自定义 Logo 与登录壁纸配置；
 - **备用主题**：同时保留 `luci-theme-argon` 与 `bootstrap` 供选择。
 
 ### 4. 💾 M.2 NVMe 固态硬盘与存储支持
@@ -144,7 +144,7 @@ flowchart TD
 | **软件安装** | `luci-app-package-manager` | 支持网页端直接上传本地 `.ipk` / `.apk` 软件包并一键离线安装 |
 | **内核日志** | `luci-app-log` | 系统日志与内核 dmesg 查看器 |
 | **端口映射** | `luci-app-upnp` / `luci-app-socat` | UPnP 端口映射与端口转发工具 |
-| **现代界面** | `luci-theme-shadcn` | 默认主题：基于 shadcn/ui 风格的侧边栏主题 |
+| **现代界面** | `luci-theme-shadcn`<br>`luci-app-shadcn-config` | 默认主题及可视化配置面板：侧边栏/顶栏布局、主色、壁纸与中文翻译 (`luci-i18n-shadcn-config-zh-cn`) |
 
 ---
 
@@ -242,7 +242,8 @@ BPI-R4 主板上带有 **2-Pin 硬件启动拨码开关**（标有 `B0`、`B1` �
 - [0x5826/openwrt-packages-extras](https://github.com/0x5826/openwrt-packages-extras) - 现代 OpenWrt 扩展软件源（Cloudflared Next）
 - [ImmortalWrt 官方社区](https://github.com/immortalwrt/immortalwrt) & [OpenWrt 官方项目](https://github.com/openwrt/openwrt)
 - [nikkinikki-org/OpenWrt-nikki](https://github.com/nikkinikki-org/OpenWrt-nikki) - 基于 Mihomo 的现代 OpenWrt 透明代理套件
-- [eamonxg/luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn) - 现代化 shadcn/ui 侧边栏主题
+- [Apocalypse-Long/luci-theme-shadcn](https://github.com/Apocalypse-Long/luci-theme-shadcn) - 现代化 shadcn/ui 主题（基于 [eamonxg/luci-theme-shadcn](https://github.com/eamonxg/luci-theme-shadcn) 集成扩展）
+- [TomatoNuNu/luci-app-shadcn-config](https://github.com/TomatoNuNu/luci-app-shadcn-config) - shadcn 主题可视化配置插件与中文语言包
 - [sbwml/luci-app-mosdns](https://github.com/sbwml/luci-app-mosdns) - MosDNS v5 中文管理套件
 - [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky) - Lucky 端口转发与反代工具
 - [EasyTier](https://github.com/EasyTier/luci-app-easytier) - 去中心化 Mesh 组网工具
