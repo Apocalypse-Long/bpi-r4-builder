@@ -99,6 +99,9 @@ jobs:
           rm -rf /tmp/luci-app-shadcn-config
           git clone --depth 1 https://github.com/TomatoNuNu/luci-app-shadcn-config.git /tmp/luci-app-shadcn-config
           cp -r /tmp/luci-app-shadcn-config/luci-app-shadcn-config package/luci-app-shadcn-config
+          # apk 25.12 不接受 PKG_RELEASE 含小数点 (如 20261024.1)，否则报 "package version is invalid"
+          sed -i -E '/^PKG_RELEASE:=/ s/\.//g' package/luci-app-shadcn-config/Makefile
+          grep -n '^PKG_RELEASE' package/luci-app-shadcn-config/Makefile
           rm -rf /tmp/luci-app-shadcn-config
 
       - name: 恢复 Ccache 与源码依赖缓存
