@@ -100,9 +100,12 @@ jobs:
           git clone --depth 1 https://github.com/TomatoNuNu/luci-app-shadcn-config.git /tmp/luci-app-shadcn-config
           cp -r /tmp/luci-app-shadcn-config/luci-app-shadcn-config package/luci-app-shadcn-config
           # apk 25.12 不接受 PKG_RELEASE 含小数点 (如 20261024.1)，否则报 "package version is invalid"
-          sed -i -E '/^PKG_RELEASE:=/ s/\.//g' package/luci-app-shadcn-config/Makefile
+          find package -maxdepth 3 -name Makefile -exec sed -i -E '/^PKG_RELEASE:=/ s/\.//g' {} +
           grep -n '^PKG_RELEASE' package/luci-app-shadcn-config/Makefile
           rm -rf /tmp/luci-app-shadcn-config
+
+          # 6. 优化 Nikki 启动脚本为 tmpfs 单次 yq 合并并收敛订阅超时
+          python3 "$GITHUB_WORKSPACE/scripts/patch-nikki-init.py"
 
       - name: 恢复 Ccache 与源码依赖缓存
         uses: actions/cache@v4
@@ -140,8 +143,12 @@ jobs:
       - name: 配置 Ccache 与加载自定义配置
         working-directory: /workdir/openwrt
         run: |
-          [ -e $GITHUB_WORKSPACE/$CONFIG_FILE ] && cp $GITHUB_WORKSPACE/$CONFIG_FILE .config
-          [ -d $GITHUB_WORKSPACE/files ] && cp -rf $GITHUB_WORKSPACE/files/* files/ 2>/dev/null || true
+          [ -e "$GITHUB_WORKSPACE/$CONFIG_FILE" ] && cp "$GITHUB_WORKSPACE/$CONFIG_FILE" .config
+          if [ -d "$GITHUB_WORKSPACE/files" ]; then
+            mkdir -p files
+            cp -rf "$GITHUB_WORKSPACE/files/." files/
+            chmod +x files/etc/rc.local files/etc/uci-defaults/* files/usr/share/rpcd/ucode/*.uc 2>/dev/null || true
+          fi
 
           # 配置 Ccache 最大缓存占用为 5GB 并打印初始状态
           mkdir -p "$CCACHE_DIR"

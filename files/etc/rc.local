@@ -1,0 +1,16 @@
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+# Split MT7988A Ethernet TX/RX IRQs across CPU1 & CPU2 (avoid CPU0 bottleneck)
+IRQS=$(awk '/15100000\.ethernet/{gsub(":", "", $1); print $1}' /proc/interrupts)
+i=0
+for irq in $IRQS; do
+    if [ "$i" = 0 ]; then
+        echo 2 > /proc/irq/$irq/smp_affinity 2>/dev/null || true
+    else
+        echo 4 > /proc/irq/$irq/smp_affinity 2>/dev/null || true
+    fi
+    i=$((i + 1))
+done
+
+exit 0

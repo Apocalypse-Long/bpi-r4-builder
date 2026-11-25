@@ -98,12 +98,14 @@ flowchart TD
 
 本项目基于 **[0x5826/immortalwrt-mtk](https://github.com/0x5826/immortalwrt-mtk)**（开发分支 `openwrt-25.12`，Linux 内核 6.12）构建，针对 BPI-R4 的硬件架构与主路由使用场景进行了适配与调优：
 
-### 1. ⚙️ Cortex-A73 编译调优与硬件包转发优化
+### 1. ⚙️ Cortex-A73 编译调优、多核中断分流与硬件包转发优化
 - **架构指令集调优**：在保持 `aarch64_cortex-a53` 官方软件源兼容性的前提下，通过 `CONFIG_TARGET_OPTIMIZATION` 开启 `-O2 -pipe -march=armv8-a+crypto+crc -mtune=cortex-a73` 编译优化，并集成 `kmod-crypto-hw-safexcel` 硬件加密驱动；
-- **流表与硬件卸载**：适配 MT7988 三硬件包处理引擎（Triple PPE），开启硬件流表卸载功能，在大连接数并发或跨网段 NAT 转发时有效降低 CPU 占用。
+- **流表与硬件卸载**：默认启用 `flow_offloading_hw`（MT7988A Triple PPE 硬件流量卸载）并配置 `net.netfilter.nf_conntrack_tcp_be_liberal=1`，降低高并发 NAT 转发时的 CPU 占用；
+- **多核 IRQ 与 RPS/RFS 均衡**：通过预置 `files/etc/rc.local`、`files/etc/sysctl.d/99-bpi-r4-tuning.conf` 与 `files/etc/uci-defaults/99-bpi-r4-defaults` 将 `15100000.ethernet` 收发硬中断绑定至 CPU1/CPU2，并开启四核 `packet_steering` 与 `32768` RFS 流表；
+- **闪存写入保护与服务收敛**：构建时通过 `scripts/patch-nikki-init.py` 将 Nikki 配置合并改为 `tmpfs` 单次 `yq` 管道并收敛订阅超时；首启脚本自动将 ZeroTier 与 `nlbwmon` 数据目录切至内存盘，并将 `avahi-daemon` 限制在 `br-lan`。
 
 ### 2. 🔇 内核与运行日志优化
-- **精简日志**：对底层驱动及运行日志进行针对性过滤，去除无用的调试冗余信息，保持系统日志清晰整洁。
+- **精简日志**：对底层驱动补丁（`999-silence-devfreq-cci-warning.patch`）及 Cron 日志级别（`cronloglevel=9`）进行调整，减少冗余调试输出。
 
 ### 3. 🎨 现代界面主题：[luci-theme-shadcn](https://github.com/Apocalypse-Long/luci-theme-shadcn)
 - **界面体验**：默认预置基于 **shadcn/ui** 风格的现代主题，支持侧边栏与顶栏布局切换；
@@ -138,7 +140,7 @@ flowchart TD
 | **文件共享** | `luci-app-samba4` | 局域网文件共享服务，支持 Windows / macOS 挂载 |
 | **磁盘管理** | `luci-app-diskman` | 磁盘分区、格式化、挂载管理及 S.M.A.R.T. 健康检查 |
 | **吞吐测速** | `luci-app-netspeedtest` | 网页端测速与 iPerf3 服务端 |
-| **链路监控** | `luci-app-sfp-info` | 实时查看双 10G SFP+ 光电模块温度、电压、接收光功率 |
+| **链路监控** | `luci-app-sfp-info` (内置于 `files/`) | 实时查看双 10G SFP+ 光电模块温度、电压、接收光功率（含 G-010S-P I2C 读数容错校准） |
 | **指标采集** | `prometheus-node-exporter-lua` | 系统性能与网络流量指标暴露，配合 Home Assistant / Grafana 监控 |
 | **系统运维** | `luci-app-ttyd` / `luci-app-filemanager` | 网页端终端工具 (Web Shell) 与原生 Web 文件上传/下载/在线编辑管理器 |
 | **软件安装** | `luci-app-package-manager` | 支持网页端直接上传本地 `.ipk` / `.apk` 软件包并一键离线安装 |
@@ -232,7 +234,7 @@ BPI-R4 主板上带有 **2-Pin 硬件启动拨码开关**（标有 `B0`、`B1` �
 * **增删预置软件包**：修改根目录下的 `bpir4.config` 文件；
 * **注入额外内核/系统补丁**：将 `.patch` 文件放入 `patches/` 目录中。
   > 工作流会自动判断：若为驱动底层补丁（`drivers/` 等）会自动派发到 `target/linux/mediatek/patches-*`；若为基础补丁会自动在源码根目录打入。
-* **自定义预置配置文件**：如需开箱自带网络规则或网络配置，可在根目录下创建 `files/` 文件夹（例如 `files/etc/config/network`），编译时将自动合并进系统固件。
+* **自定义预置配置文件**：仓库自带的 `files/` 目录已预置 `luci-app-sfp-info`、内核调优（`sysctl.d/99-bpi-r4-tuning.conf`）、`rc.local` 网卡中断分流及幂等首启脚本（`uci-defaults/99-bpi-r4-defaults`），编译时会自动注入固件镜像。
 
 ---
 

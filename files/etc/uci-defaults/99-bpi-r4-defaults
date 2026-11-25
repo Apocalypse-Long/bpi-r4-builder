@@ -1,0 +1,42 @@
+#!/bin/sh
+# Idempotent first-boot / upgrade defaults for BPI-R4 wired router
+
+if [ -z "$(uci -q get network.globals.packet_steering)" ]; then
+	uci set network.globals.packet_steering='2'
+	uci set network.globals.steering_flows='128'
+	uci commit network
+fi
+
+if [ -z "$(uci -q get firewall.@defaults[0].flow_offloading)" ]; then
+	uci set firewall.@defaults[0].flow_offloading='1'
+	uci set firewall.@defaults[0].flow_offloading_hw='1'
+	uci commit firewall
+fi
+
+if [ -z "$(uci -q get system.@system[0].cronloglevel)" ]; then
+	uci set system.@system[0].cronloglevel='9'
+	uci commit system
+fi
+
+if uci -q get zerotier.global >/dev/null 2>&1; then
+	if [ -z "$(uci -q get zerotier.global.copy_config_path)" ]; then
+		uci set zerotier.global.copy_config_path='1'
+		uci commit zerotier
+	fi
+fi
+
+if uci -q get nlbwmon.@nlbwmon[0] >/dev/null 2>&1; then
+	nlbw_dir="$(uci -q get nlbwmon.@nlbwmon[0].database_directory)"
+	if [ -z "$nlbw_dir" ] || [ "$nlbw_dir" = "/usr/share/nlbwmon" ]; then
+		uci set nlbwmon.@nlbwmon[0].database_directory='/var/lib/nlbwmon'
+		uci set nlbwmon.@nlbwmon[0].commit_interval='24h'
+		uci commit nlbwmon
+	fi
+fi
+
+if [ -f /etc/avahi/avahi-daemon.conf ] && ! grep -q '^allow-interfaces=' /etc/avahi/avahi-daemon.conf; then
+	sed -i '/^\[server\]/a allow-interfaces=br-lan' /etc/avahi/avahi-daemon.conf
+	sed -i 's/^#\?publish-hinfo=.*/publish-hinfo=no/' /etc/avahi/avahi-daemon.conf
+fi
+
+exit 0
